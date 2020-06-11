@@ -1,4 +1,6 @@
 const puppeteer = require('puppeteer');
+const sessionFactory = require('./factories/sessionFactory');
+const userFactory = require('./factories/userFactory');
 
 let browser, page;
 
@@ -11,7 +13,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-    // await browser.close();
+    await browser.close();
 });
 
 test('The header has the correct text', async () => {
@@ -19,36 +21,21 @@ test('The header has the correct text', async () => {
     expect(text).toEqual('Blogster');
 });
 
-test('clicking login starts oauth flow', async () => {
+test('Clicking login starts oauth flow', async () => {
     await page.click('.right a');
     const url = await page.url();
     expect(url).toMatch(/accounts\.google\.com/);
 });
 
-test.only('When sign in, show logout button',async () => {
+test('When sign in, show logout button',async () => {
+    const user = await userFactory();
+    const { session, sig } = sessionFactory(user);
 
-    const id = '5ede402faf2ed7ae17983230';
-    const Buffer = require('safe-buffer').Buffer;
-    const sessionObject = {
-        passport: {
-            user: id
-        }
-    };
-    // we gotta emulate the sessionString and the signature that are generated when we sign in
-    // we use Buffer in combination with Keygrip to accomplish that, and simulate a successful
-    // login, using an existing user id
-
-    // generates session string
-    const sessionString = Buffer.from(
-        JSON.stringify(sessionObject)
-    ).toString('base64');
-    // generate signature
-    const Keygrip = require('keygrip');
-    const keys = require('../config/keys');
-    const keygrip = new Keygrip([keys.cookieKey]);
-    const sig = keygrip.sign('session=' + sessionString);
-
-    await page.setCookie({ name: 'session', value: sessionString });
+    await page.setCookie({ name: 'session', value: session });
     await page.setCookie({ name: 'session.sig', value: sig });
     await page.goto('localhost:3000');
+    await page.waitFor('a[href="/auth/logout"]');
+
+    const text = await page.$eval('a[href="/auth/logout"]', el => el.innerHTML);
+    expect(text).toEqual('Logout');
 });
